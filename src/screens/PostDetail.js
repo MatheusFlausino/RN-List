@@ -1,67 +1,146 @@
 import React, { Component } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Button, TouchableOpacity } from 'react-native';
 import Post from '../components/Post'
 import axios from 'axios';
+import { deleteDataPost, deleteDataAutor, deleteDataComment } from '../redux/actions';
+import { connect } from 'react-redux';
+import { ScrollView } from 'react-native-gesture-handler';
 
-export default class PostDetail extends Component {
+class PostDetail extends Component {
   constructor(props) {
     super(props);
 
+    // state das sanfonas do autor e do comentario
     this.state = {
-      post: {}, // variavel que armazena o post
-      loading: false,
-      error: false,
+      openAutor: false,
+      openComentario: false,
     };
   }
 
 
-  componentDidMount() {
-    this.setState({ loading: true });
-    // Usei um banco de dados Fake, JSON PLACEHLDER. https://jsonplaceholder.typicode.com/
-    // Axios é um client que faz requisições http
-    axios
-      .get(`https://jsonplaceholder.typicode.com/posts/${this.props.route?.params?.post || -1}`)
-      .then(response => {
-        // Essa API não retorna erros então eu verifico se veio o item com id
-        // Se nào veio o item com id atribuo erro
-        if (response.data.id) {
-          this.setState({
-            post: response.data,
-            loading: false,
-          })
-        } else {
-          // Quando der erro cancela o loading e atribui erro
-          this.setState({
-            error: true,
-            loading: false,
-          })
-        }
-      }).catch(error => {
-        // Quando der erro cancela o loading e atribui erro
-        this.setState({
-          error: true,
-          loading: false,
-        })
-      });
-  }
-
   render() {
+    const { params } = this.props.route;
+    const { openAutor, openComentario } = this.state
     return (
       <View style={styles.container}>
-        {
-          // Enquanto o loading for TRUE esse ActivityIndicator fica rodando na tela
-          this.state.loading ?
-            <ActivityIndicator size="large" color="#CBCBCB" />
-            :
-            // Quando o loading for cancelado e for atribuido erro aparece essa msg
-            this.state.error ?
-              <Text style={styles.error}>Post não encontrado 🙃</Text>
-              :
-              // Componente de baixo é o post por inteiro
-              // os tres pontos é para copiar o conteudo do post como propriedade no componente e chama-se Spread (https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Operators/Spread_operator) 
-              // é a mesma coisa que <Post title={this.state.post.title} body={this.state.post.body} />
-              <Post {...this.state.post} />
-        }
+        <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+          <Button
+            title="Excluir"
+            color="#FF0004"
+            onPress={async () => {
+              const hasDeleted = await this.props.deleteDataPost(params.post)
+              if (hasDeleted) {
+                this.props.navigation.goBack();
+              }
+            }}
+          />
+          <Button
+            title="Editar"
+            onPress={() => {
+              this.props.navigation.replace('NewPost', { post: params.post });
+            }}
+          />
+        </View>
+        <Post
+          title={params.post?.title}
+          body={params.post?.body}
+          img={params.post?.img}
+        />
+
+        <ScrollView style={{ height: 130, backgroundColor: '#bdc3c7', paddingTop: 10 }}>
+
+          <View style={{ marginBottom: 10 }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: "center", justifyContent: "space-around" }}
+              onPress={() => {
+                this.setState({
+                  openAutor: !openAutor
+                })
+              }}>
+              <Text>{openAutor ? ' ▼' : ' ▲'} Autores</Text>
+              <Button
+                title="Adicionar"
+                onPress={() => {
+                  this.props.navigation.replace('NewAutor', { autor: { postId: params.post.id } });
+                }}
+              />
+            </TouchableOpacity>
+            {
+              openAutor && params.post?.autor?.map((autor, index) => (
+                <View
+                  key={index}
+                  style={{ flexDirection: 'row', alignItems: "center", justifyContent: "space-around", borderTopWidth: (!index ? .5 : 0), borderBottomWidth: .5 }}
+                >
+                  <Text>{autor.nome}</Text>
+                  <View style={{ flexDirection: 'row' }}>
+                    <Button
+                      title="Editar"
+                      onPress={() => {
+                        this.props.navigation.replace('NewAutor', { autor: { ...autor, postId: params.post.id } });
+                      }}
+                    />
+                    <Button
+                      title="Excluir"
+                      onPress={async () => {
+                        await this.props.deleteDataAutor({ ...autor, postId: params.post.id });
+                      }}
+                    />
+                  </View>
+                </View>
+
+              ))
+            }
+          </View>
+
+          <View style={{ marginBottom: 10 }}>
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: "center", justifyContent: "space-around" }}
+              onPress={() => {
+                this.setState({
+                  openComentario: !openComentario
+                })
+              }}>
+              <Text>{openComentario ? ' ▼' : ' ▲'} Comentários</Text>
+              <Button
+                title="Adicionar"
+                onPress={() => {
+                  this.props.navigation.replace('NewComment', { comentario: { postId: params.post.id } });
+                }}
+              />
+            </TouchableOpacity>
+            {
+              openComentario && params.post?.comentario?.map((comentario, index) => (
+                <View
+                  key={index}
+                  style={{ flexDirection: 'row', alignItems: "center", justifyContent: "space-around", borderTopWidth: .5, borderBottomWidth: .5 }}
+                >
+                  <Text
+                    style={{ width: '50%' }}
+                    numberOfLines={1} // Numero de linhas que será exibido, limitando em 1 linha
+                    ellipsizeMode="tail" // propriedade que coloca reticências no final da frase se acabar espaço da linha
+                  >{comentario.comentario}</Text>
+                  <View style={{ flexDirection: 'row' }}>
+                    <Button
+                      title="Editar"
+                      onPress={() => {
+                        this.props.navigation.replace('NewComment', { comentario: { ...comentario, postId: params.post.id } });
+                      }}
+                    />
+                    <Button
+                      title="Excluir"
+                      onPress={async () => {
+                        await this.props.deleteDataComment({ ...comentario, postId: params.post.id });
+                      }}
+                    />
+                  </View>
+                </View>
+
+              ))
+            }
+          </View>
+
+        </ScrollView>
       </View>
     );
   }
@@ -79,3 +158,5 @@ const styles = StyleSheet.create({
     alignSelf: 'center'
   }
 })
+
+export default connect(null, { deleteDataPost, deleteDataAutor, deleteDataComment })(PostDetail);

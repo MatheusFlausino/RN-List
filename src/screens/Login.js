@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import FormRow from '../components/FormRow';
 import firebase from 'firebase';
+import { connect } from 'react-redux';
+import { processLogin } from '../redux/actions';
 
-
-
-export default class LoginScreen extends React.Component {
+class LoginScreen extends React.Component {
 
   constructor(props) {
     super(props);
@@ -60,6 +60,12 @@ export default class LoginScreen extends React.Component {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
+
+    // Verificação se o usuário já está logado
+    const { currentUser } = firebase.auth();
+    if (currentUser && currentUser.uid && currentUser.email) {
+      this.props.navigation.replace('Main');
+    }
   }
 
   onChangeHandler(field, valor) {
@@ -81,55 +87,21 @@ export default class LoginScreen extends React.Component {
       this.setState({ message: code });
     }
 
-    // Função do FireBase para efetuar o login
-    firebase
-      .auth()
-      .signInWithEmailAndPassword(email, password)
-      .then((response) => {
-        // Se o login der certo redireciona para a lista de Autores criada na entrega passada
-        console.log(response);
-        this.props.navigation.navigate('Main');
-      })
-      .catch(error => {
-        // Se o login der errado
-        // Verifica o código do erro, se for não encontrou usuário (user-not-found)
-        // Sugere para criar o usuário
-        if (error.code == "auth/user-not-found") {
-          // Irá abrir um pop-up para verificar se deseja criar um usuário com esse email e senha ou não
-          Alert.alert(
-            "Usuário não encontrado",
-            "Deseja criar um novo usuário?",
-            [{
-              text: 'Não',
-              onPress: () => {
-                // Se o usuário recusar nào executa nada, somente fecha o pop-up
-                console.log('Usuário não quis criar nova conta.');
-              }
-            }, {
-              text: 'Sim',
-              onPress: () => {
-                // Se o usuário aceitar criará um usuário novo no firebase
-                firebase
-                  .auth()
-                  .createUserWithEmailAndPassword(email, password)
-                  .then((response) => {
-                    // Se tudo der certo na criação do usuário será redirecionado para a lista de Autores criada na entrega passada
-                    console.log(response);
-                    this.props.navigation.navigate('Main');
-                  })
-                  .catch((error) => {
-                    // Se der errado na criação do usuário será exibida a msg de erro para o usuário
-                    loginUserFailed(error)
-                  })
-              }
-            }],
-            { cancelable: false }
-          );
+    // Função do redux para efetuar o login
+    this.props.processLogin({ email, password })
+      .then(user => {
+        if (user) {
+          // Navigation replace para não deixar o usuário voltar para a tela de login
+          this.props.navigation.replace('Main');
         } else {
-          // Se não for o tipo de erro (user-not-found) exibe a msg de erro para o usuário
-          loginUserFailed(error)
+          // Caso aconteça algum erro de não retornar usuário para o loading e não exibe msg
+          this.setState({
+            isLoading: false,
+            message: '',
+          })
         }
       })
+      .catch(loginUserFailed)
       .finally(() => {
         this.setState({ isLoading: false });
       })
@@ -203,13 +175,16 @@ export default class LoginScreen extends React.Component {
   }
 }
 
+// Conexão da Action do Login com a tela de Login
+export default connect(null, { processLogin })(LoginScreen);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center"
   },
-  title:{
+  title: {
     fontSize: 30,
     marginBottom: 20
   },
